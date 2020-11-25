@@ -96,12 +96,12 @@ class GitSyncBarApp(rumps.App):
 		self.schedule_sync(0)
 
 	def on_click_show_in_finder(self, sender):
-		print("show in finder: " + self.config_sync_dir)
-		subprocess.call(['open', self.config_sync_dir])
+		print("show in finder: " + self.config['sync_dir'])
+		subprocess.call(['open', self.config['sync_dir']])
 
 	def on_click_open_terminal(self, sender):
-		print("open in terminal: " + self.config_sync_dir)
-		subprocess.call(['open', '-a', 'terminal', self.config_sync_dir])
+		print("open in terminal: " + self.config['sync_dir'])
+		subprocess.call(['open', '-a', 'terminal', self.config['sync_dir']])
 
 	def on_click_edit_config(self, sender):
 		print("Editing configuration...")
@@ -114,8 +114,8 @@ class GitSyncBarApp(rumps.App):
 		print("watchdog event:")
 		print(event)
 		if self.git_has_changes():
-			app.icon = ICON_EXCLAMATION
-			self.schedule_sync(self.config_sync_delay_seconds)
+			self.icon = ICON_EXCLAMATION
+			self.schedule_sync(self.config['sync_delay_seconds'])
 
 	def on_poll(self, timer):
 		print("on_poll")
