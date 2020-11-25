@@ -1,10 +1,15 @@
 #!/bin/bash
 
+set -e 
+
+
 source venv/bin/activate
+
+# clean
+rm -rf dmg build dist
 
 python3 setup.py py2app
 
-rm -rf dmg
 mkdir dmg
 
 hdiutil create dmg/temp.dmg -ov -volname "GitSyncBar" -fs HFS+ -srcfolder "./dist"

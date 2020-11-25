@@ -18,6 +18,19 @@ ICON="icon.pdf"
 ICON_SYNC="icon-sync.pdf"
 ICON_EXCLAMATION="icon-exclamation.pdf"
 
+GIT_BIN = "/usr/local/bin/git"
+
+if not os.path.exists(GIT_BIN):
+	GIT_BIN = "/usr/bin/git"
+
+if not os.path.exists(GIT_BIN):
+	rumps.alert("No git binary in /usr/local/bin/git or /usr/bin/git")
+	exit(1)
+
+print("Found git binary at " + GIT_BIN)
+
+
+
 def current_time_millis():
 	return int(round(time.time() * 1000))
 
@@ -204,7 +217,6 @@ class GitSyncBarApp(rumps.App):
 
 			if not self.git_has_remote(config['sync_dir']):
 				raise NameError("sync_dir has no git remote.")
-
 
 			if "watch_for_changes" not in config:
 				raise NameError("watch_for_changes is required")
@@ -406,7 +418,7 @@ class GitSyncBarApp(rumps.App):
 
 	def mqtt_announce_change(self):
 		print("MQTT announcing change")
-		self.mqtt_client.publish('gitsync', self.config['client_id'])
+		self.mqtt_client.publish(self.config['mqtt_topic'], self.config['client_id'])
 
 
 	#######################################################################
@@ -414,16 +426,16 @@ class GitSyncBarApp(rumps.App):
 	#######################################################################
 
 	def git_is_git_dir(self, path):
-		output = subprocess.check_output(['git', 'rev-parse', '--git-dir'], cwd=path, encoding="utf8")
+		output = subprocess.check_output([GIT_BIN, 'rev-parse', '--git-dir'], cwd=path, encoding="utf8")
 		return ".git" == output.strip()
 
 	def git_has_remote(self, path):
-		output = subprocess.check_output(['git', 'remote'], cwd=path, encoding="utf8")
+		output = subprocess.check_output([GIT_BIN, 'remote'], cwd=path, encoding="utf8")
 		return len(output.strip()) > 0
 
 	def git_has_changes(self):
 		print("git_has_changes")
-		output = subprocess.check_output(['git', 'status', '-s', '--porcelain'], cwd=self.config['sync_dir'], encoding="utf8")
+		output = subprocess.check_output([GIT_BIN, 'status', '-s', '--porcelain'], cwd=self.config['sync_dir'], encoding="utf8")
 		
 		has_changes = len(output) > 0
 
@@ -437,24 +449,24 @@ class GitSyncBarApp(rumps.App):
 
 	def git_add_all_modified(self):
 		print("add:")
-		rc = subprocess.call(['git', 'add', '-A'], cwd=self.config['sync_dir'])
+		rc = subprocess.call([GIT_BIN, 'add', '-A'], cwd=self.config['sync_dir'])
 		print(f"add rc = " + str(rc))
 
 	def git_commit(self):
 		print("commit:")
-		rc = subprocess.call(['git', 'commit', '-m', self.git_commit_message], cwd=self.config['sync_dir'])
+		rc = subprocess.call([GIT_BIN, 'commit', '-m', self.git_commit_message], cwd=self.config['sync_dir'])
 		print(f"commit rc = {rc}")
 
 	def git_pull_keep_ours(self):
 		# this does a pull, and if there are any merge conflicts it takes our copy and uses the 
 		# default generated merge message.  If there are no conflicts, its a normal pull.
 		print("pull:")
-		rc = subprocess.call(['git', 'pull', '-Xours', '--no-edit'], cwd=self.config['sync_dir'])
+		rc = subprocess.call([GIT_BIN, 'pull', '-Xours', '--no-edit'], cwd=self.config['sync_dir'])
 		print(f"pull rc = {rc}")
 
 	def git_push(self):
 		print("push:")
-		output = subprocess.check_output(['git', 'push', '--porcelain'], cwd=self.config['sync_dir'], encoding="utf8")
+		output = subprocess.check_output([GIT_BIN, 'push', '--porcelain'], cwd=self.config['sync_dir'], encoding="utf8")
 		
 		# TODO: this seems like a bad way to check this...
 		pushed_changes = ("[up to date]" not in output)
