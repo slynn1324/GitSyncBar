@@ -2,6 +2,7 @@
 
 A small macOS menu bar app to automatically sync (commit, push, and pull) a git repo for Dropbox like functionality.
 
+As all git commands are non-interactive, git will need access to pull and push from the configured remote without prompting for a password.  Most commonly, this would be by a non-password protected ssh key.  You need to be able to run `git pull` and `git push` from the sync_dir without being prompted for input for this application to work.  
 
 ## Configuration
 
