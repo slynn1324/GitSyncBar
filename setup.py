@@ -8,7 +8,7 @@ OPTIONS = {
 	'plist':{
 		'LSUIElement': True,
 		'CFBundleIdentifier':'net.quikstorm.gitsyncbar',
-		'CFBundleShortVersionString':'0.0.2',
+		'CFBundleShortVersionString':'0.0.3',
 	},
 	'packages': ['rumps']
 }
