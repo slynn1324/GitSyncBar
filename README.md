@@ -51,11 +51,11 @@ Do note that the reliability of public mqtt brokers may have no service level gu
 
 ## Credits
 
-python[https://www.python.org/]
-rumps[https://rumps.readthedocs.io/en/latest/index.html]
-py2app[https://py2app.readthedocs.io/en/latest/]
-watchdog[https://github.com/gorakhargosh/watchdog]
-paho-mqtt[https://pypi.org/project/paho-mqtt/]
+- python[https://www.python.org/]
+- rumps[https://rumps.readthedocs.io/en/latest/index.html]
+- py2app[https://py2app.readthedocs.io/en/latest/]
+- watchdog[https://github.com/gorakhargosh/watchdog]
+- paho-mqtt[https://pypi.org/project/paho-mqtt/]
 
 
 
