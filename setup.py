@@ -1,7 +1,7 @@
 from setuptools import setup
 
-APP = ['a2.py']
-DATA_FILES = ['config.json']
+APP = ['app.py']
+DATA_FILES = ['icon.pdf', 'icon-sync.pdf', 'icon-exclamation.pdf']
 OPTIONS = {
 	'argv_emulation': True,
 	'iconfile':'icon.icns',
@@ -10,7 +10,7 @@ OPTIONS = {
 		'CFBundleIdentifier':'net.quikstorm.gitsyncbar',
 		'CFBundleShortVersionString':'0.0.1',
 	},
-	'packages': ['rumps', 'watchdog']
+	'packages': ['rumps']
 }
 
 setup(

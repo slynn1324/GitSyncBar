@@ -12,9 +12,6 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 import uuid
 import json
-import sys
-
-from AppKit import NSBundle, NSTask, NSURL
 
 APP_NAME = "Git Sync Bar"
 ICON="icon.pdf"
@@ -49,19 +46,9 @@ class GitSyncBarApp(rumps.App):
 		self.config_path = os.path.join(rumps.application_support(self.name), "config.json")
 		self.config = self.load_or_create_config()
 
-		# setup configuration
-		self.config_client_id = "123123"
-		self.config_sync_dir = "/Users/slynn1324/GitSync"
-		self.config_sync_delay_seconds = 10
-		self.config_mqtt_host = "mqtt.quikstorm.net"
-		self.config_mqtt_port = 28883
-		self.config_mqtt_keepalive = 900 # 15 minutes
-		self.config_sync_poll_seconds = 3600 # manually poll every hour.. in case we missed a mqtt push
-		self.config_watch_for_changes = True
-
 		# calculated configuration
 		self.git_commit_message = "host: " + socket.gethostname()
-		
+				
 		# build the menus
 		self.menu_item_last_update = rumps.MenuItem("Syncing...")
 		self.menu_item_sync_now = rumps.MenuItem("Sync Now", callback=self.on_click_sync_now)
@@ -82,8 +69,8 @@ class GitSyncBarApp(rumps.App):
 
 		# if a sync_poll_seconds config option is set, setup the timer.  this will also fire immediately on start,
 		# so we can use that to perform an initial sync
-		if self.config_sync_poll_seconds > 0:
-			self.poll_timer = rumps.Timer(self.on_poll, self.config_sync_poll_seconds)
+		if self.config['sync_poll_seconds'] > 0:
+			self.poll_timer = rumps.Timer(self.on_poll, self.config['sync_poll_seconds'])
 			self.poll_timer.start()
 		else:
 			# if we did not schedule a timer, we need to scheduled a start-up sync.
@@ -93,14 +80,14 @@ class GitSyncBarApp(rumps.App):
 		self.sync_timer = None
 
 		# initialize a mqtt connection for sync notifications
-		if self.config_mqtt_host != None:
+		if self.config['mqtt_enabled']:	
 			self.mqtt_init()
 
 		# setup a watchdog to track file changes
-		if self.config_watch_for_changes:
-			self.watchdog_handler = WatchdogHandler(self.config_sync_dir, self.on_watchdog_event)
+		if self.config['watch_for_changes']:
+			self.watchdog_handler = WatchdogHandler(self.config['sync_dir'], self.on_watchdog_event)
 			self.watchdog_observer = Observer()
-			self.watchdog_observer.schedule(self.watchdog_handler, self.config_sync_dir, recursive=True)
+			self.watchdog_observer.schedule(self.watchdog_handler, self.config['sync_dir'], recursive=True)
 			self.watchdog_observer.start()
 
 	
@@ -133,11 +120,11 @@ class GitSyncBarApp(rumps.App):
 	def on_poll(self, timer):
 		print("on_poll")
 
-		if (current_time_millis() - self.last_sync_millis) > (self.config_sync_poll_seconds * 1000):
-			print("No sync in the last " + str(self.config_sync_poll_seconds) + " seconds, syncing now.")
+		if (current_time_millis() - self.last_sync_millis) > (self.config['sync_poll_seconds'] * 1000):
+			print("No sync in the last " + str(self.config['sync_poll_seconds']) + " seconds, syncing now.")
 			self.schedule_sync(0)
 		else:
-			print("Sync occured during last " + str(self.config_sync_poll_seconds) + " seconds, not syncing now.")
+			print("Sync occured during last " + str(self.config['sync_poll_seconds']) + " seconds, not syncing now.")
 
 	def load_or_create_config(self):
 
@@ -158,7 +145,7 @@ class GitSyncBarApp(rumps.App):
 			if not valid_config['valid']:
 				self.edit_config(config_txt=config, message_text=valid_config['msg'])
 
-		self.config = json.loads(config)
+		return json.loads(config)
 
 
 	def edit_config(self, config_txt=None, message_text=None):
@@ -192,7 +179,7 @@ class GitSyncBarApp(rumps.App):
 				return self.edit_config(config_txt=resp.text, message_text=validation_result['msg'])
 		else:
 			print("Configuration cancelled, exiting.")
-			exit(1)
+			rumps.quit_application();
 
 
 	def validate_config(self, txt):
@@ -200,6 +187,117 @@ class GitSyncBarApp(rumps.App):
 		try:
 			config = json.loads(txt)
 
+			if "client_id" not in config:
+				raise NameError("client_id is required")
+
+			if len(config["client_id"]) < 1:
+				raise NameError("client_id may not be empty")
+
+			if "sync_dir" not in config:
+				raise NameError("sync_dir is required")
+
+			if not os.path.exists(config['sync_dir']):
+				raise NameError("sync_dir does not exist")
+
+			if not self.git_is_git_dir(config['sync_dir']):
+				raise NameError("sync_dir is not a git repo, `git init` it.")
+
+			if not self.git_has_remote(config['sync_dir']):
+				raise NameError("sync_dir has no git remote.")
+
+
+			if "watch_for_changes" not in config:
+				raise NameError("watch_for_changes is required")
+
+			if type(config['watch_for_changes']) != bool:
+				raise NameError("watch_for_changes must be true or false")
+
+			if "sync_delay_seconds" not in config:
+				raise NameError("sync_delay_seconds is required")
+
+			if type(config['sync_delay_seconds']) != int:
+				raise NameError("sync_delay_seconds must be an int")
+
+			if "sync_poll_seconds" not in config:
+				raise NameError("sync_poll_seconds is required")
+
+			if type(config['sync_poll_seconds']) != int:
+				raise NameError("sync_poll_seconds must be an int")
+
+			if "mqtt_enabled" not in config:
+				raise NameError("mqtt_enabled is required")
+
+			if type(config['mqtt_enabled']) != bool:
+				raise NameError("mqtt_enabled must be true or false")
+
+			if config['mqtt_enabled']:
+
+				if "mqtt_host" not in config:
+					raise NameError("mqtt_host is required")
+
+				if len(config['mqtt_host']) < 1:
+					raise NameError("mqtt_host may not be empty")
+
+				if "mqtt_port" not in config:
+					raise NameErrror("mqtt_port is required")
+
+				if type(config['mqtt_port']) != int:
+					raise NameError("mqtt_port must be an int")
+
+				if "mqtt_topic" not in config:
+					raise NameError("mqtt_topic is required")
+
+				if len(config['mqtt_topic']) < 1:
+					raise NameError("mqtt_topic may not be empty")
+
+				if "mqtt_keepalive_seconds" not in config:
+					raise NameError("mqtt_keepalive_seconds is required")
+
+				if type(config['mqtt_keepalive_seconds']) != int:
+					raise NameError("mqtt_keepalive_seconds must be an int")
+
+				if "mqtt_use_tls" not in config:
+					raise NameError("mqtt_use_tls is required")
+
+				if type(config['mqtt_use_tls']) != bool:
+					raise NameError("mqtt_use_tls must be true or false")
+
+				if config['mqtt_use_tls']:
+
+					if "mqtt_tls_ca_cert_file" not in config:
+						raise NameError("mqtt_tls_ca_cert_file is required")
+
+					if len(config['mqtt_tls_ca_cert_file']) < 1:
+						raise NameError("mqtt_tls_ca_cert_file must not be empty")
+
+					if not os.path.exists(config['mqtt_tls_ca_cert_file']):
+						raise NameError("mqtt_tls_ca_cert_file does not exist")
+
+					if "mqtt_tls_cert_file" not in config:
+						raise NameError("mqtt_tls_cert_file is required")
+
+					if len(config['mqtt_tls_cert_file']) < 1:
+						raise NameError("mqtt_tls_cert_file must not be empty")
+
+					if not os.path.exists(config['mqtt_tls_cert_file']):
+						raise NameError("mqtt_tls_cert_file does not exist")
+
+					if "mqtt_tls_key_file" not in config:
+						raise NameError("mqtt_tls_key_file is required")
+
+					if len(config['mqtt_tls_key_file']) < 1:
+						raise NameError("mqtt_tls_key_file must not be empty")
+
+					if not os.path.exists(config["mqtt_tls_key_file"]):
+						raise NameError("mqtt_tls_key_file does not exist")
+
+					if "mqtt_tls_version" not in config:
+						raise NameError("mqtt_tls_version is required")
+
+					if config['mqtt_tls_version'] != '1.2':
+						raise NameError("mqtt_tls_version must be 1.2")
+
+			
 			print("Valid Configuration")
 			return { "valid": True, "msg": None }
 		except Exception as e:
@@ -207,10 +305,13 @@ class GitSyncBarApp(rumps.App):
 			return { "valid": False, "msg": str(e) }
 
 
+
 	def get_default_config(self):
 
 		home_path = os.path.expanduser("~")
 		sync_path = os.path.join(home_path, "GitSync")
+
+		certs_path = os.path.join(rumps.application_support(self.name), "certs")
 
 		config = {}
 		config['client_id'] = uuidgen()
@@ -224,6 +325,10 @@ class GitSyncBarApp(rumps.App):
 		config['mqtt_topic'] = uuidgen()
 		config['mqtt_keepalive_seconds'] = 900
 		config['mqtt_use_tls'] = False
+		config['mqtt_tls_ca_cert_file'] = os.path.join(certs_path, "ca.crt")
+		config['mqtt_tls_cert_file'] = os.path.join(certs_path, "client.crt")
+		config['mqtt_tls_key_file'] = os.path.join(certs_path, "client.key")
+		config['mqtt_tls_version'] = "1.2"
 
 		config_str = json.dumps(config, indent=2)
 
@@ -238,8 +343,9 @@ class GitSyncBarApp(rumps.App):
 
 
 		self.sync_timer = Timer(delay, self.sync)
-		self.sync_timer.start()
 		print(f"will sync in {delay} seconds")
+		self.sync_timer.start()
+		
 
 
 	# this must be invoked in a background thread, or it'll block the UI
@@ -259,20 +365,21 @@ class GitSyncBarApp(rumps.App):
 
 
 	def mqtt_init(self):
-		self.mqtt_client = mqtt.Client(client_id=self.config_client_id)
+		self.mqtt_client = mqtt.Client(client_id=self.config['client_id'])
 		self.mqtt_client.on_connect = self.mqtt_on_connect
 		self.mqtt_client.on_message = self.mqtt_on_message
 		self.mqtt_client.on_disconnect = self.mqtt_on_disconnect
 
 		app_support_path = rumps.application_support(self.name)
 
-		self.mqtt_client.tls_set(ca_certs=os.path.join(app_support_path, "mqtt-certs/ca.crt"), 
-			certfile=os.path.join(app_support_path,"mqtt-certs/client.crt"), 
-			keyfile=os.path.join(app_support_path,"mqtt-certs/client.key"), 
-			cert_reqs=ssl.CERT_REQUIRED, 
-			tls_version=ssl.PROTOCOL_TLSv1_2)
+		if self.config['mqtt_use_tls']:
+			self.mqtt_client.tls_set(ca_certs=self.config['mqtt_tls_ca_cert_file'], 
+				certfile=self.config['mqtt_tls_cert_file'], 
+				keyfile=self.config['mqtt_tls_key_file'], 
+				cert_reqs=ssl.CERT_REQUIRED, 
+				tls_version=ssl.PROTOCOL_TLSv1_2)
 
-		self.mqtt_client.connect_async(self.config_mqtt_host, self.config_mqtt_port, self.config_mqtt_keepalive)
+		self.mqtt_client.connect_async(self.config['mqtt_host'], self.config['mqtt_port'], self.config['mqtt_keepalive_seconds'])
 
 		self.mqtt_thread = Thread(target=self.mqtt_thread_run)
 		self.mqtt_thread.start()
@@ -280,14 +387,14 @@ class GitSyncBarApp(rumps.App):
 
 	def mqtt_on_connect(self, client, userdata, flags, rc):
 		print("MQTT Connected")
-		client.subscribe("gitsync")
+		client.subscribe(self.config['mqtt_topic'])
 
 	def mqtt_on_disconnect(self, client, userdata, rc):
 		print("MQTT Disconnceted rc=" + str(rc))
 
 	def mqtt_on_message(self, client, userdata, msg):
 		print("MQTT GOT MESSAGE: topic=" + msg.topic + " payload=" + str(msg.payload, 'utf8'))
-		if str(msg.payload, 'utf8') == self.config_client_id:
+		if str(msg.payload, 'utf8') == self.config['client_id']:
 			print("ignore message from self")
 		else:
 			print("sync notification from client_id=" + str(msg.payload, 'utf8'))
@@ -299,20 +406,24 @@ class GitSyncBarApp(rumps.App):
 
 	def mqtt_announce_change(self):
 		print("MQTT announcing change")
-		self.mqtt_client.publish('gitsync', self.config_client_id)
+		self.mqtt_client.publish('gitsync', self.config['client_id'])
 
 
 	#######################################################################
 	## git invocations                                                   ##
 	#######################################################################
 
-	def git_is_git_dir(self):
-		output = subprocess.check_output(['git', 'rev-parse', '--git-dir'], cwd=self.config_sync_dir, encoding="utf8")
+	def git_is_git_dir(self, path):
+		output = subprocess.check_output(['git', 'rev-parse', '--git-dir'], cwd=path, encoding="utf8")
 		return ".git" == output.strip()
+
+	def git_has_remote(self, path):
+		output = subprocess.check_output(['git', 'remote'], cwd=path, encoding="utf8")
+		return len(output.strip()) > 0
 
 	def git_has_changes(self):
 		print("git_has_changes")
-		output = subprocess.check_output(['git', 'status', '-s', '--porcelain'], cwd=self.config_sync_dir, encoding="utf8")
+		output = subprocess.check_output(['git', 'status', '-s', '--porcelain'], cwd=self.config['sync_dir'], encoding="utf8")
 		
 		has_changes = len(output) > 0
 
@@ -326,24 +437,24 @@ class GitSyncBarApp(rumps.App):
 
 	def git_add_all_modified(self):
 		print("add:")
-		rc = subprocess.call(['git', 'add', '-A'], cwd=self.config_sync_dir)
+		rc = subprocess.call(['git', 'add', '-A'], cwd=self.config['sync_dir'])
 		print(f"add rc = " + str(rc))
 
 	def git_commit(self):
 		print("commit:")
-		rc = subprocess.call(['git', 'commit', '-m', self.git_commit_message], cwd=self.config_sync_dir)
+		rc = subprocess.call(['git', 'commit', '-m', self.git_commit_message], cwd=self.config['sync_dir'])
 		print(f"commit rc = {rc}")
 
 	def git_pull_keep_ours(self):
 		# this does a pull, and if there are any merge conflicts it takes our copy and uses the 
 		# default generated merge message.  If there are no conflicts, its a normal pull.
 		print("pull:")
-		rc = subprocess.call(['git', 'pull', '-Xours', '--no-edit'], cwd=self.config_sync_dir)
+		rc = subprocess.call(['git', 'pull', '-Xours', '--no-edit'], cwd=self.config['sync_dir'])
 		print(f"pull rc = {rc}")
 
 	def git_push(self):
 		print("push:")
-		output = subprocess.check_output(['git', 'push', '--porcelain'], cwd=self.config_sync_dir, encoding="utf8")
+		output = subprocess.check_output(['git', 'push', '--porcelain'], cwd=self.config['sync_dir'], encoding="utf8")
 		
 		# TODO: this seems like a bad way to check this...
 		pushed_changes = ("[up to date]" not in output)
