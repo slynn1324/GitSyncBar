@@ -15,6 +15,7 @@ import json
 
 APP_NAME = "Git Sync Bar"
 ICON="icon.pdf"
+ICON_50PCT="icon-50pct.png"
 ICON_SYNC="icon-sync.pdf"
 ICON_EXCLAMATION="icon-exclamation.pdf"
 
@@ -94,6 +95,7 @@ class GitSyncBarApp(rumps.App):
 
 		# initialize a mqtt connection for sync notifications
 		if self.config['mqtt_enabled']:	
+			self.icon = ICON_50PCT
 			self.mqtt_init()
 
 		# setup a watchdog to track file changes
@@ -400,9 +402,11 @@ class GitSyncBarApp(rumps.App):
 	def mqtt_on_connect(self, client, userdata, flags, rc):
 		print("MQTT Connected")
 		client.subscribe(self.config['mqtt_topic'])
+		self.icon = ICON
 
 	def mqtt_on_disconnect(self, client, userdata, rc):
 		print("MQTT Disconnceted rc=" + str(rc))
+		self.icon = ICON_50PCT
 
 	def mqtt_on_message(self, client, userdata, msg):
 		print("MQTT GOT MESSAGE: topic=" + msg.topic + " payload=" + str(msg.payload, 'utf8'))
