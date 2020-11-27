@@ -404,6 +404,9 @@ class GitSyncBarApp(rumps.App):
 		client.subscribe(self.config['mqtt_topic'])
 		self.icon = ICON
 
+		print("Sync after connect, may have missed messages.")
+		self.schedule_sync(2)
+
 	def mqtt_on_disconnect(self, client, userdata, rc):
 		print("MQTT Disconnceted rc=" + str(rc))
 		self.icon = ICON_50PCT
