@@ -8,7 +8,8 @@ import time
 import ssl
 import paho.mqtt.client as mqtt
 import os
-from watchdog.observers import Observer
+# from watchdog.observers import Observer
+from watchdog.observers.kqueue import KqueueObserver as Observer
 from watchdog.events import PatternMatchingEventHandler
 import uuid
 import json
